@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIGPA-CEDU | Sistema de Gestión y Cronograma de Tutorías</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS para Importar Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2pdf para Exportar a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --navy-header: #001f3f;
+            --navy-sub: #0f172a;
+            --border-color: #334155;
+            --green-exam: #059669;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; font-size: 8pt; padding: 0 !important; }
+            .print-full { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+            table { border-collapse: collapse !important; width: 100% !important; }
+            th, td { border: 1px solid #000 !important; padding: 3px 5px !important; }
+        }
+
+        .table-custom {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 11px;
+            color: #0f172a;
+        }
+
+        .table-custom th, .table-custom td {
+            border: 1px solid #cbd5e1;
+            padding: 6px 5px;
+            vertical-align: middle;
+        }
+
+        .bg-subnavy { background-color: var(--navy-sub); color: #ffffff; text-align: center; font-weight: bold; letter-spacing: 0.05em; }
+        .bg-exam { background-color: var(--green-exam); color: #ffffff; text-align: center; font-weight: bold; }
+
+        /* Estilo destacado exclusivo para el Aula */
+        .col-aula-header { background-color: #0369a1 !important; color: #ffffff !important; text-align: center; font-weight: bold; }
+        .col-aula-cell { background-color: #e0f2fe !important; color: #0369a1 !important; font-weight: 900 !important; text-align: center; }
+
+        /* Estilo destacado exclusivo para el Horario */
+        .col-horario-cell { 
+            background-color: #fef2f2 !important; 
+            color: #b91c1c !important; 
+            font-weight: 900 !important; 
+            text-align: center; 
+            border: 2px solid #ef4444 !important; 
+        }
+
+        /* Diferenciación visual por Grupo con Bordes Marcados */
+        .row-grupo1 { background-color: #eff6ff !important; border-left: 5px solid #2563eb !important; }  /* Azul tenue + borde azul */
+        .row-grupo2 { background-color: #f0fdf4 !important; border-left: 5px solid #16a34a !important; }  /* Verde tenue + borde verde */
+
+        /* Línea de separación horizontal entre Grupo 1 y Grupo 2 */
+        .row-sep-grupo { border-bottom: 3px solid #2563eb !important; }
+
+        /* Colores de Menciones y Semestres */
+        .row-pasantia { background-color: #fef3c7 !important; border-left: 5px solid #d97706 !important; }        /* Ámbar */
+        .row-mencion-psico { background-color: #fce7f3 !important; border-left: 5px solid #db2777 !important; }   /* Rosado */
+        .row-mencion-social { background-color: #e0f2fe !important; border-left: 5px solid #0284c7 !important; }  /* Celeste */
+        .row-mencion-tec { background-color: #fef9c3 !important; border-left: 5px solid #ca8a04 !important; }     /* Amarillo */
+        .row-noveno-sem { background-color: #f3e8ff !important; border-left: 5px solid #9333ea !important; }      /* Púrpura */
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-900 flex h-screen overflow-hidden">
+
+    <!-- BARRA LATERAL (SIDEBAR) -->
+    <aside class="w-72 bg-slate-950 text-slate-300 flex flex-col no-print shrink-0 shadow-2xl border-r border-slate-800">
+        <div class="p-5 border-b border-slate-800 flex items-center gap-3 bg-slate-900/80">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-700 to-red-500 flex items-center justify-center font-black text-white text-xs shadow-lg ring-2 ring-red-500/30">
+                UAGRM
+            </div>
+            <div>
+                <h1 class="font-extrabold text-white text-sm tracking-wide">SIGPA-CEDU</h1>
+                <p class="text-[11px] text-indigo-400 font-semibold">Ciencias de la Educación</p>
+            </div>
+        </div>
+
+        <div class="p-4 bg-slate-950 border-b border-slate-800/60">
+            <label class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">Rol de Usuario:</label>
+            <div class="relative">
+                <select class="w-full bg-slate-900 text-emerald-400 font-semibold text-xs rounded-lg p-2.5 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none">
+                    <option>Nivel 1 — Administración</option>
+                    <option>Nivel 2 — Docente</option>
+                    <option>Nivel 3 — Estudiante</option>
+                </select>
+                <i class="fa-solid fa-chevron-down text-slate-400 absolute right-3 top-3.5 text-xs pointer-events-none"></i>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 text-xs font-semibold uppercase tracking-wider">
+            <button onclick="cambiarVista('malla')" id="btnNavMalla" class="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white bg-indigo-600 shadow-md shadow-indigo-600/30 transition-all">
+                <i class="fa-solid fa-table-cells w-4 text-base"></i> Cronograma Tutorías
+            </button>
+            <button onclick="document.getElementById('fileExcelInput').click()" class="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition-all">
+                <i class="fa-solid fa-file-import w-4 text-base text-emerald-400"></i> Importar Excel
+            </button>
+            <button onclick="cambiarVista('docentes')" id="btnNavDocentes" class="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition-all">
+                <i class="fa-solid fa-calculator w-4 text-base text-amber-400"></i> Carga Horaria Docente
+            </button>
+        </nav>
+
+        <!-- SECCIÓN DE DERECHOS DE AUTOR EN SIDEBAR -->
+        <div class="p-4 border-t border-slate-800/80 bg-slate-950/60 text-center">
+            <p class="text-[10px] text-slate-400 font-medium leading-relaxed">
+                © 2026 Derechos Reservados<br>
+                <strong class="text-indigo-300 font-bold">María Elizabeth Palenque Cortez</strong>
+            </p>
+        </div>
+
+        <input type="file" id="fileExcelInput" accept=".xlsx, .xls" class="hidden" onchange="importarExcelArchivo(event)">
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-100">
+
+        <!-- CABECERA INSTITUCIONAL ELEGANTE -->
+        <header class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center no-print shadow-sm">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-1 bg-indigo-600 rounded-full"></div>
+                <div>
+                    <h2 class="text-base font-black text-slate-900 uppercase tracking-tight">Universidad Autónoma Gabriel René Moreno</h2>
+                    <p class="text-xs text-slate-500 font-medium">Facultad de Humanidades — Carrera Ciencias de la Educación | Gestión Académica II-2026</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-50 border border-indigo-200/80 text-indigo-900 px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-2 shadow-sm">
+                    <i class="fa-regular fa-calendar-check text-indigo-600"></i> Periodo: <span>II-2026</span>
+                </div>
+            </div>
+        </header>
+
+        <main id="areaImpresion" class="p-6 space-y-6 print-full">
+
+            <!-- LEYENDA DE COLORES MODERNA -->
+            <div class="bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm flex flex-wrap gap-5 text-xs font-semibold no-print items-center">
+                <span class="text-slate-400 uppercase tracking-wider text-[10px] font-black">Identificación Visual:</span>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-sm bg-blue-100 border-l-4 border-l-blue-600 border border-blue-200 inline-block shadow-sm"></span> Grupo 1 (Borde Azul)</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-sm bg-emerald-100 border-l-4 border-l-emerald-600 border border-emerald-200 inline-block shadow-sm"></span> Grupo 2 (Borde Verde)</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-md bg-red-100 border-2 border-red-500 inline-block shadow-sm"></span> Horario Destacado</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-md bg-pink-200 border border-pink-400 inline-block shadow-sm"></span> Psicopedagogía (PSI)</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-md bg-sky-200 border border-sky-400 inline-block shadow-sm"></span> Educación Social (CSO)</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-md bg-yellow-200 border border-yellow-400 inline-block shadow-sm"></span> Tecnología Educativa (TEC)</div>
+                <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-md bg-purple-200 border border-purple-400 inline-block shadow-sm"></span> Noveno Semestre</div>
+            </div>
+
+            <!-- CONTROLES Y FILTROS PROFESIONALES -->
+            <section class="bg-white border border-slate-200/80 p-5 rounded-xl shadow-sm space-y-4 no-print">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-1.5">Plan Académico</label>
+                        <select id="selectPlan" onchange="filtrar()" class="w-full text-xs font-bold bg-indigo-50/70 text-indigo-950 border border-indigo-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500">
+                            <option value="145A" selected>Plan 145A</option>
+                            <option value="145B">Plan 145B</option>
+                            <option value="TODOS">Todos los Planes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-1.5">Grupo / Paralelo</label>
+                        <select id="selectGrupo" onchange="filtrar()" class="w-full text-xs font-bold bg-slate-50 text-slate-800 border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500">
+                            <option value="TODOS" selected>Todos los Grupos</option>
+                            <option value="GRUPO 1">GRUPO 1</option>
+                            <option value="GRUPO 2">GRUPO 2</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-1.5">Semestre</label>
+                        <select id="selectSemestre" onchange="filtrar()" class="w-full text-xs font-bold bg-slate-50 text-slate-800 border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500">
+                            <option value="TODOS" selected>Todos los Semestres (1.° al 9.°)</option>
+                            <option value="1">1ER SEMESTRE</option>
+                            <option value="2">2DO SEMESTRE</option>
+                            <option value="3">3ER SEMESTRE</option>
+                            <option value="4">4TO SEMESTRE</option>
+                            <option value="5">5TO SEMESTRE</option>
+                            <option value="6">6TO SEMESTRE</option>
+                            <option value="7">7MO SEMESTRE</option>
+                            <option value="8">8VO SEMESTRE</option>
+                            <option value="9">9NO SEMESTRE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-1.5">Búsqueda Rápida</label>
+                        <div class="relative">
+                            <input type="text" id="inputBuscar" onkeyup="filtrar()" placeholder="Materia, sigla o docente..." class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-indigo-500">
+                            <i class="fa-solid fa-magnifying-glass text-slate-400 absolute left-3 top-3 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center pt-3 border-t border-slate-100">
+                    <div class="flex gap-2.5">
+                        <button onclick="limpiarFiltros()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-sm transition-all">
+                            <i class="fa-solid fa-filter-circle-xmark"></i> Mostrar Todo
+                        </button>
+                        <button onclick="exportarPDF()" class="bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-sm transition-all">
+                            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+                        </button>
+                        <button onclick="window.print()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-sm transition-all">
+                            <i class="fa-solid fa-print"></i> Imprimir
+                        </button>
+                    </div>
+                    <div class="text-xs font-bold text-slate-700 bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200">
+                        Total Horas Programadas: <span id="lblTotalHorasPlan" class="text-indigo-700 font-black text-sm ml-1">0 hrs</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA TABLA CRONOGRAMA DE TUTORÍAS -->
+            <div id="vista-malla" class="space-y-6">
+                <!-- Generado dinámicamente -->
+            </div>
+
+            <!-- VISTA RESUMEN CARGA DOCENTE -->
+            <div id="vista-docentes" class="hidden bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-5">
+                    <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-user-tie text-indigo-600 text-base"></i> Resumen de Carga Horaria Acumulada por Docente
+                    </h3>
+                    <span id="lblTotalDocentesCount" class="text-xs bg-indigo-50 text-indigo-800 font-black px-3.5 py-1.5 rounded-full border border-indigo-100">0 Docentes Registrados</span>
+                </div>
+                <div id="contenedorDocentes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5"></div>
+            </div>
+
+            <!-- PIE DE PÁGINA OFICIAL CON DERECHOS DE AUTOR -->
+            <footer class="bg-white border border-slate-200/80 p-5 rounded-xl shadow-sm text-center space-y-1 text-xs text-slate-500 mt-8">
+                <p class="font-black text-slate-800 uppercase tracking-wide">Universidad Autónoma Gabriel René Moreno • Carrera de Ciencias de la Educación</p>
+                <p>Sistema Oficial de Gestión de Tutorías a Distancia — Periodo II-2026</p>
+                <div class="pt-2 border-t border-slate-100 font-bold text-indigo-700">
+                    Propiedad Intelectual y Derechos de Autor Registrados © 2026: <span class="underline decoration-indigo-400">Maria Elizabeth Palenque Cortez</span>
+                </div>
+            </footer>
+
+        </main>
+    </div>
+
+    <!-- MODAL DE EDICIÓN MANUAL -->
+    <div id="modalEdicion" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
+            <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center font-bold text-sm">
+                <span class="flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-indigo-400"></i> Modificar Asignatura</span>
+                <button onclick="cerrarModal()" class="text-slate-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-3.5 text-xs">
+                <input type="hidden" id="editItemPlan">
+                <input type="hidden" id="editItemId">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">Sigla</label>
+                        <input type="text" id="editSigla" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 font-bold uppercase">
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">Grupo</label>
+                        <input type="text" id="editGrupo" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 font-bold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Nombre de la Materia</label>
+                    <input type="text" id="editMateria" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 font-bold">
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Docente Asignado</label>
+                    <input type="text" id="editDocente" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 font-bold text-indigo-950">
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">Horario</label>
+                        <input type="text" id="editHorario" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">Módulo</label>
+                        <input type="text" id="editModulo" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">Aula</label>
+                        <input type="text" id="editAula" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-center">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Fechas de Clases (Ago, Sep, Oct, Nov)</label>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <input type="text" id="editF0" placeholder="Ago P" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF1" placeholder="Ago V" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF2" placeholder="Sep P" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF3" placeholder="Sep V" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF4" placeholder="Oct P" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF5" placeholder="Oct V" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF6" placeholder="Nov P" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                        <input type="text" id="editF7" placeholder="Nov V" class="bg-slate-50 border border-slate-300 text-center p-1.5 rounded-lg font-bold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Fecha Examen Final</label>
+                    <input type="text" id="editExamen" class="w-full border border-emerald-300 rounded-lg p-2.5 text-center font-black text-emerald-800 bg-emerald-50">
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
+                <button onclick="cerrarModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all">Cancelar</button>
+                <button onclick="guardarEdicion()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE DATOS Y RENDERIZADO -->
+    <script>
+        let datosOficiales = {
+            "145A": [
+                // 1ER SEMESTRE
+                { id: "145A_1", plan: "145A", semestre: 1, sigla: "EDU112", grupo: "GRUPO 1", materia: "HISTORIA DE LA EDUCACIÓN", docente: "VILLARROEL EDITH VICTORIA", horario: "08:30 -10:00", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_2", plan: "145A", semestre: 1, sigla: "CSO131", grupo: "GRUPO 1", materia: "SOCIOLOGÍA GENERAL", docente: "AMURRIO ALBARRACIN JOSE VLADIMIR", horario: "10:00 -11:30", modulo: "263", aula: "07", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_3", plan: "145A", semestre: 1, sigla: "EDU111", grupo: "GRUPO 1", materia: "INTRODUCCIÓN A LAS CIENCIAS DE LA EDUCACIÓN", docente: "VELASCO ALGARAÑAZ RONALD", horario: "11:30 - 13:00", modulo: "263", aula: "09", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_4", plan: "145A", semestre: 1, sigla: "DEP161", grupo: "GRUPO 2", materia: "ESTRATEGIAS DE APRENDIZAJE Y GESTIÓN", docente: "QUIROZ ROJAS BERNABÉ", horario: "08:30 - 10:00", modulo: "263", aula: "15", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_5", plan: "145A", semestre: 1, sigla: "CSO132", grupo: "GRUPO 2", materia: "EDUCACIÓN PARA LA CIUDADANÍA", docente: "QUIROZ ROJAS BERNABÉ", horario: "10:00 - 11:30", modulo: "263", aula: "15", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_6", plan: "145A", semestre: 1, sigla: "PSI121", grupo: "GRUPO 2", materia: "PSICOLOGÍA GENERAL", docente: "ROSA BECKAUSER OLIVIA", horario: "11:30 - 13:00", modulo: "263", aula: "01", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 2DO SEMESTRE
+                { id: "145A_7", plan: "145A", semestre: 2, sigla: "INV141", grupo: "GRUPO 1", materia: "INTRODUCCIÓN A LA INVESTIGACIÓN CIENTÍFICA", docente: "CABELLO JUAN RUBÉN", horario: "07:00 - 08:30", modulo: "263", aula: "12", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_8", plan: "145A", semestre: 2, sigla: "EDU114", grupo: "GRUPO 1", materia: "PEDAGOGÍA GENERAL", docente: "VELASCO ALGARAÑAZ RONALD", horario: "08:30 - 10:00", modulo: "263", aula: "09", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_9", plan: "145A", semestre: 2, sigla: "DEP165", grupo: "GRUPO 1", materia: "PRODUCCIÓN DE TEXTOS Y EXPRESIÓN ORAL", docente: "SAN MARTIN MARTÍNEZ NIMIA", horario: "10:00 - 11:30", modulo: "263", aula: "05", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_10", plan: "145A", semestre: 2, sigla: "PSI122", grupo: "GRUPO 1", materia: "PSICOLOGÍA EDUCATIVA", docente: "VILLANUEVA ACHA MARIA JESUS", horario: "11:30 - 13:00", modulo: "263", aula: "14", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_11", plan: "145A", semestre: 2, sigla: "EDU113", grupo: "GRUPO 2", materia: "EDUCACIÓN COMPARADA", docente: "ROJAS ALDANA RICHARD", horario: "08:30 - 10:00", modulo: "263", aula: "06", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_12", plan: "145A", semestre: 2, sigla: "CSO133", grupo: "GRUPO 2", materia: "SOCIOLOGÍA DE LA EDUCACIÓN", docente: "RUFINO PASQUITO", horario: "11:30 - 13:00", modulo: "263", aula: "02", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 3ER SEMESTRE
+                { id: "145A_13", plan: "145A", semestre: 3, sigla: "CSO235", grupo: "GRUPO 1", materia: "PEDAGOGÍA SOCIAL", docente: "JALDÍN ARROYO DELIA CLAUDIA", horario: "08:30 - 10:00", modulo: "263", aula: "11", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_14", plan: "145A", semestre: 3, sigla: "PSI223", grupo: "GRUPO 1", materia: "TEORÍAS DEL APRENDIZAJE", docente: "VILLANUEVA ACHÁ MARÍA JESÚS", horario: "10:00 - 11:30", modulo: "263", aula: "14", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_15", plan: "145A", semestre: 3, sigla: "EDU215", grupo: "GRUPO 1", materia: "DIDÁCTICA GENERAL", docente: "VALVERDE SANCHEZ RAFAEL", horario: "11:30 - 13:00", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_16", plan: "145A", semestre: 3, sigla: "PSI224", grupo: "GRUPO 1", materia: "PSICOLOGÍA DEL DESARROLLO HUMANO", docente: "RICHARD ROJAS ALDANA", horario: "13:00 - 14:30", modulo: "263", aula: "14", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_17", plan: "145A", semestre: 3, sigla: "INV242", grupo: "GRUPO 2", materia: "ESTADÍSTICA APLICADA A LA EDUCACIÓN", docente: "APAZA MIRANDA ALBERTO", horario: "07:00 - 08:30", modulo: "SALA", aula: "1", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_18", plan: "145A", semestre: 3, sigla: "CSO234", grupo: "GRUPO 2", materia: "ANTROPOLOGÍA Y EDUCACIÓN", docente: "ROMERO RODRIGUEZ RUPERTO", horario: "08:30 - 10:00", modulo: "263", aula: "12", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 4TO SEMESTRE
+                { id: "145A_19", plan: "145A", semestre: 4, sigla: "CSO237", grupo: "GRUPO 1", materia: "ESTRATEGIAS COMUNICACIONALES EN EDUCACIÓN", docente: "BAZAN TORREZ ROMANE", horario: "08:30 - 10:00", modulo: "263", aula: "07", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_20", plan: "145A", semestre: 4, sigla: "DEP266", grupo: "GRUPO 1", materia: "CREATIVIDAD Y DESARROLLO DE HABILIDADES SOCIALES", docente: "CARLA SAN MIGUEL", horario: "10:00 - 11:30", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_21", plan: "145A", semestre: 4, sigla: "CSO236", grupo: "GRUPO 1", materia: "ANTROPOLOGÍA SOCIOCULTURAL", docente: "ACOSTA CABEZAS JAVIER", horario: "11:30 - 13:00", modulo: "263", aula: "07", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_22", plan: "145A", semestre: 4, sigla: "PSI225", grupo: "GRUPO 1", materia: "NEUROPSICOLOGÍA COGNITIVA", docente: "JUSTINIANO DOMINGUEZ MARIA DELIA", horario: "13:00 - 14:30", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_23", plan: "145A", semestre: 4, sigla: "EDU216", grupo: "GRUPO 2", materia: "FILOSOFÍA Y EPISTEMOLOGÍA EN EDUCACIÓN", docente: "SENZANO MAURIEL BENITO", horario: "08:30 - 10:00", modulo: "263", aula: "02", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_24", plan: "145A", semestre: 4, sigla: "EDU217", grupo: "GRUPO 2", materia: "DIDÁCTICAS ESPECÍFICAS", docente: "CASTRO TERAN MARIOLY", horario: "10:00 - 11:30", modulo: "263", aula: "06", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 5TO SEMESTRE
+                { id: "145A_25", plan: "145A", semestre: 5, sigla: "CSO 331", grupo: "GRUPO 1", materia: "POLÍTICAS Y LEGISLACIÓN EDUCATIVA", docente: "ROMERO COLQUE WEIMAR", horario: "07:00 - 08:30", modulo: "263", aula: "05", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_26", plan: "145A", semestre: 5, sigla: "PSI 321", grupo: "GRUPO 1", materia: "EDUCACIÓN ESPECIAL", docente: "JUSTINIANO DOMINGUEZ MARIA DELIA", horario: "08:30 - 10:00", modulo: "263", aula: "02", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_27", plan: "145A", semestre: 5, sigla: "CSO332", grupo: "GRUPO 1", materia: "DIAGNÓSTICO DE NECESIDADES SOCIOEDUCATIVAS", docente: "ALPIRE MENDOZA WALTER", horario: "10:00 - 11:30", modulo: "263", aula: "09", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_28", plan: "145A", semestre: 5, sigla: "EDU311", grupo: "GRUPO 1", materia: "CURRÍCULUM", docente: "LOPEZ ROSEL OLIVIA", horario: "11:30 - 13:00", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_29", plan: "145A", semestre: 5, sigla: "TEC351", grupo: "GRUPO 2", materia: "TECNOLOGÍA E INNOVACIÓN EDUCATIVA", docente: "MOSCOSO SEVERICHE HUBERT", horario: "07:00 - 08:30", modulo: "263", aula: "05", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_30", plan: "145A", semestre: 5, sigla: "DEP 164", grupo: "GRUPO 2", materia: "LENGUA EXTRANJERA INGLÉS", docente: "ESPINOZA TEJERINA JOSE MIGUEL", horario: "08:30 - 10:00", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_31", plan: "145A", semestre: 5, sigla: "EDU 312", grupo: "GRUPO 2", materia: "ORIENTACIÓN VOCACIONAL Y PROFESIONAL", docente: "FELICIDAD PAREDES BARJA", horario: "10:00 - 11:30", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 6TO SEMESTRE
+                { id: "145A_32", plan: "145A", semestre: 6, sigla: "PSI322", grupo: "GRUPO 1", materia: "DIFICULTADES DE APRENDIZAJE E INTERVENCIÓN", docente: "VILLANUEVA ACHÁ MARÍA JESÚS", horario: "07:00 - 08:30", modulo: "263", aula: "14", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_33", plan: "145A", semestre: 6, sigla: "TEC352", grupo: "GRUPO 1", materia: "DISEÑO INSTRUCCIONAL", docente: "CINTHIA ARUQUIPA", horario: "08:30 - 10:00", modulo: "263", aula: "10", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_34", plan: "145A", semestre: 6, sigla: "CSO334", grupo: "GRUPO 1", materia: "PROYECTOS DE INTERVENCIÓN SOCIOEDUCATIVA", docente: "JALDÍN ARROYO DELIA CLAUDIA", horario: "10:00 - 11:30", modulo: "263", aula: "11", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_35", plan: "145A", semestre: 6, sigla: "PAS316", grupo: "GRUPO 1", materia: "PASANTÍA EN GESTIÓN DE PROYECTOS SOCIOEDUCATIVOS", docente: "JALDÍN ARROYO DELIA CLAUDIA", horario: "11:30 - 13:00", modulo: "263", aula: "11", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_36", plan: "145A", semestre: 6, sigla: "EDU313", grupo: "GRUPO 2", materia: "EVALUACIÓN EDUCATIVA", docente: "QUELCA MAMANI VICTOR", horario: "08:30 - 10:00", modulo: "263", aula: "05", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_37", plan: "145A", semestre: 6, sigla: "PAS315", grupo: "GRUPO 2", materia: "PASANTÍA EN ESTIMULACIÓN TEMPRANA", docente: "VILLANUEVA ACHÁ MARÍA JESÚS", horario: "10:00 - 11:30", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_38", plan: "145A", semestre: 6, sigla: "CSO333", grupo: "GRUPO 2", materia: "ANIMACIÓN SOCIOCULTURAL", docente: "QUIROZ ROJAS ADOLFO", horario: "11:30 - 13:00", modulo: "263", aula: "11", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_39", plan: "145A", semestre: 6, sigla: "PSI323", grupo: "GRUPO 2", materia: "PSICOLOGÍA SOCIAL", docente: "CÉSPEDES SALAZAR MILTON", horario: "13:00 - 14:30", modulo: "263", aula: "11", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 7MO SEMESTRE
+                { id: "145A_40", plan: "145A", semestre: 7, sigla: "EDU415", grupo: "GRUPO 1", materia: "TALLER DE ADMINISTRACIÓN Y GESTIÓN", docente: "VARGAS LINO ELFY", horario: "07:00 - 08:30", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_41", plan: "145A", semestre: 7, sigla: "TEC453", grupo: "GRUPO 1", materia: "TALLER DE PRODUCCIÓN DE MEDIOS EDUCATIVOS", docente: "ALIAGA HOWARD SHARON", horario: "08:30 - 10:00", modulo: "263", aula: "10", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_42", plan: "145A", semestre: 7, sigla: "EDU414", grupo: "GRUPO 1", materia: "TALLER DE DISEÑO CURRICULAR", docente: "FOREST HERRERA WILMA", horario: "10:00 - 11:30", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_43", plan: "145A", semestre: 7, sigla: "INV443", grupo: "GRUPO 1", materia: "TALLER DE INSVESTIGACIÓN CUANTITATIVA", docente: "APAZA MIRANDA ALBERTO", horario: "11:30 - 13:00", modulo: "SALA", aula: "1", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_44", plan: "145A", semestre: 7, sigla: "PSI424", grupo: "GRUPO 2", materia: "TALLER DE EDUCACIÓN ESPECIAL", docente: "JUSTINIANO DOMINGUEZ MARIA DELIA", horario: "07:00 - 08:30", modulo: "263", aula: "16", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_45", plan: "145A", semestre: 7, sigla: "PSI425", grupo: "GRUPO 2", materia: "TALLER DE EVALUACIÓN Y DIAGNÓSTICO", docente: "VILLANUEVA ACHÁ MARÍA JESÚS", horario: "08:30 - 10:00", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_46", plan: "145A", semestre: 7, sigla: "CSO434", grupo: "GRUPO 2", materia: "TALLER DE DISEÑO DE PROGRAMAS DE DESARROLLO SOCIAL", docente: "JALDÍN ARROYO DELIA CLAUDIA", horario: "10:00 - 11:30", modulo: "263", aula: "11", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_47", plan: "145A", semestre: 7, sigla: "CSO433", grupo: "GRUPO 2", materia: "TALLER DE EDUCACIÓN INTERCULTURAL Y BILINGÜE", docente: "PASQUITO RUFINO", horario: "11:30 - 13:00", modulo: "263", aula: "02", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_48", plan: "145A", semestre: 7, sigla: "TEC454", grupo: "GRUPO 2", materia: "TALLER DE GESTIÓN DEL CONOCIMIENTO CIENTÍFICO", docente: "YURANDY VEIZAGA", horario: "13:00 - 14:30", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_49", plan: "145A", semestre: 7, sigla: "TEC455", grupo: "GRUPO 2", materia: "TALLER DE SISTEMAS DE FORMACIÓN VIRTUAL", docente: "JAIME ORBENES", horario: "14:30 - 16:00", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 8VO SEMESTRE
+                { id: "145A_50", plan: "145A", semestre: 8, sigla: "EDU416", grupo: "GRUPO 1", materia: "TALLER DE EVALUACIÓN INSTITUCIONAL Y PLANIFICACIÓN ESTRATÉGICA", docente: "NOLBERTO AGUILAR", horario: "07:00 - 08:30", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_51", plan: "145A", semestre: 8, sigla: "CSO436", grupo: "GRUPO 1", materia: "TALLER DE PROYECTOS EDUCATIVOS", docente: "VALVERDE SANCHEZ RAFAEL", horario: "08:30 - 10:00", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_52", plan: "145A", semestre: 8, sigla: "INV444", grupo: "GRUPO 1", materia: "TALLER DE INVESTIGACIÓN CUALITATIVA EN EDUCACIÓN", docente: "ANDREA FLORES CLAVER", horario: "10:00 - 11:30", modulo: "263", aula: "12", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_53", plan: "145A", semestre: 8, sigla: "CSO435", grupo: "GRUPO 1", materia: "TALLER DE EDUCACIÓN AMBIENTAL", docente: "ALPIRE MENDOZA WALTER", horario: "11:30 - 13:00", modulo: "263", aula: "09", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_54", plan: "145A", semestre: 8, sigla: "PSI427", grupo: "GRUPO 2", materia: "TALLER DE EVALUACIÓN Y DIAGNÓSTICO PSICOPEDAGÓGICO II", docente: "VILLANUEVA ACHÁ MARÍA JESÚS", horario: "07:00 - 08:30", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_55", plan: "145A", semestre: 8, sigla: "PSI426", grupo: "GRUPO 2", materia: "TALLER DE ORIENTACIÓN Y ASESORAMIENTO PSICOPEDAGÓGICO", docente: "JUSTINIANO DOMINGUEZ MARIA DELIA", horario: "08:30 - 10:00", modulo: "263", aula: "16", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_56", plan: "145A", semestre: 8, sigla: "CSO437", grupo: "GRUPO 2", materia: "TALLER DE INTERVENCIÓN CON POBLACIÓN EN RIESGO SOCIAL", docente: "JALDÍN ARROYO DELIA CLAUDIA", horario: "10:00 - 11:30", modulo: "263", aula: "11", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_57", plan: "145A", semestre: 8, sigla: "CSO438", grupo: "GRUPO 2", materia: "TALLER DE MEDIACIÓN Y ORIENTACIÓN SOCIAL", docente: "PASQUITO RUFINO", horario: "11:30 - 13:00", modulo: "263", aula: "02", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_58", plan: "145A", semestre: 8, sigla: "TEC457", grupo: "GRUPO 2", materia: "TALLER DE NUEVOS DESARROLLOS TECNOLÓGICOS APLICADOS A LA EDUCACIÓN", docente: "TRIGO VALVERDE MARCIAL", horario: "13:00 - 14:30", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145A_59", plan: "145A", semestre: 8, sigla: "TEC456", grupo: "GRUPO 2", materia: "TALLER DE PRODUCCIÓN DE MEDIOS EDUCATIVOS", docente: "QUIROZ ROJAS ROGER", horario: "14:30 - 16:00", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+
+                // 9NO SEMESTRE
+                { id: "145A_60", plan: "145A", semestre: 9, sigla: "TRD518", grupo: "GRUPO 1", materia: "TRABAJO DIRIGIDO EN EDUCACIÓN SOCIAL", docente: "MENDOZA POPPE HANS", horario: "08:30 - 10:00", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_61", plan: "145A", semestre: 9, sigla: "TRD519", grupo: "GRUPO 1", materia: "TRABAJO DIRIGIDO EN TECNOLOGÍA EDUCATIVA", docente: "ZAMBRANA BALLADARES LILIAN", horario: "10:00 - 11:30", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_62", plan: "145A", semestre: 9, sigla: "TES517", grupo: "GRUPO 1", materia: "TESIS DE GRADO", docente: "ALARCÓN VÁSQUEZ EDWIN JAVIER", horario: "11:30 - 13:00", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145A_63", plan: "145A", semestre: 9, sigla: "TRD517", grupo: "GRUPO 1", materia: "TRABAJO DIRIGIDO EN PSICOPEDAGOGÍA", docente: "HIDALGO GATO BÁRBARA", horario: "13:00 - 14:30", modulo: "263", aula: "01", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" }
+            ],
+            "145B": [
+                { id: "145B_1", plan: "145B", semestre: 1, sigla: "ADM106", grupo: "GRUPO 1", materia: "FUNDAMENTOS DE LA ORGANIZACIÓN Y ADMINISTRACIÓN I", docente: "CABALLERO ALVAREZ NILDA", horario: "08:30 - 10:00", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_2", plan: "145B", semestre: 1, sigla: "LIN101", grupo: "GRUPO 1", materia: "LENGUAJE", docente: "SAN MARTIN MARTÍNEZ NIMIA", horario: "10:00 - 11:30", modulo: "263", aula: "05", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_3", plan: "145B", semestre: 1, sigla: "CSO103", grupo: "GRUPO 1", materia: "SOCIOLOGÍA DE LA EDUCACIÓN", docente: "ALPIRE MENDOZA WALTER", horario: "11:30 - 13:00", modulo: "263", aula: "09", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_4", plan: "145B", semestre: 1, sigla: "EDU101", grupo: "GRUPO 1", materia: "PEDAGOGÍA GENERAL", docente: "VANESSA VASQUEZ", horario: "13:00 - 14:30", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_5", plan: "145B", semestre: 1, sigla: "INV105", grupo: "GRUPO 2", materia: "METODOLOGÍA DE LA INVESTIGACIÓN", docente: "SEVERICHE MOSCOSO HUBERTH A.", horario: "08:30 - 10:00", modulo: "263", aula: "05", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_6", plan: "145B", semestre: 1, sigla: "FIL104", grupo: "GRUPO 2", materia: "FILOSOFÍA DE LA EDUCACIÓN", docente: "OMAR ARUZAMEN", horario: "10:00 - 11:30", modulo: "263", aula: "02", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_7", plan: "145B", semestre: 1, sigla: "PSI102", grupo: "GRUPO 2", materia: "PSICOLOGÍA SOCIAL", docente: "ROJAS ALDANA RICHARD", horario: "11:30 - 13:00", modulo: "263", aula: "11", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_8", plan: "145B", semestre: 2, sigla: "EDU150", grupo: "GRUPO 1", materia: "DIDÁCTICA GENERAL", docente: "PINTO ARAMBURO VALENTIN", horario: "11:30 - 13:00", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_9", plan: "145B", semestre: 2, sigla: "ADM156", grupo: "GRUPO 1", materia: "FUNDAMENTOS DE LA ORGANIZACIÓN Y ADMINISTRACIÓN II", docente: "JIMENEZ LANGUIDEZ GUILLERMO", horario: "08:30 - 10:00", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_10", plan: "145B", semestre: 2, sigla: "CSO153", grupo: "GRUPO 1", materia: "ANTROPOLOGÍA Y EDUCACIÓN", docente: "AVALOS ALVAREZ LORGIO", horario: "10:00 - 11:30", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_11", plan: "145B", semestre: 2, sigla: "PSI162", grupo: "GRUPO 2", materia: "TEORÍAS Y ENFOQUES DE LA EDUCACIÓN", docente: "LOPEZ TARRAGA DORA", horario: "08:30 - 10:00", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_12", plan: "145B", semestre: 2, sigla: "FIL154", grupo: "GRUPO 2", materia: "IDEOLOGÍA Y EDUCACIÓN", docente: "LOPEZ TARRAGA DORA", horario: "10:00 - 11:30", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_13", plan: "145B", semestre: 2, sigla: "INV165", grupo: "GRUPO 2", materia: "ESTADÍSTICA EN EDUCACIÓN", docente: "BRAÑEZ UGARTECHE JUDITH", horario: "11:30 - 13:00", modulo: "263", aula: "16", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_14", plan: "145B", semestre: 3, sigla: "EDU206", grupo: "GRUPO 1", materia: "CURRÍCULO", docente: "LILIANA FRANCO", horario: "10:00 - 11:30", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_15", plan: "145B", semestre: 3, sigla: "CSO203", grupo: "GRUPO 1", materia: "LEGISLACIÓN EDUCATIVA", docente: "SAN MARTIN MARTÍNEZ NIMIA", horario: "08:30 - 10:00", modulo: "263", aula: "05", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_16", plan: "145B", semestre: 3, sigla: "PSI202", grupo: "GRUPO 1", materia: "PSICOLOGÍA EDUCATIVA", docente: "MARIA DELIA JUSTINIANO", horario: "13:00 - 14:30", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_17", plan: "145B", semestre: 3, sigla: "EDU201", grupo: "GRUPO 2", materia: "TECNOLOGÍA EDUCATIVA", docente: "SEVERICHE MOSCOSO HUBERTH A.", horario: "10:00 - 11:30", modulo: "263", aula: "05", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_18", plan: "145B", semestre: 3, sigla: "FIL204", grupo: "GRUPO 2", materia: "PENSAMIENTO PEDAGÓGICO", docente: "LOPEZ TARRAGA DORA", horario: "11:30 - 13:00", modulo: "263", aula: "10", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_19", plan: "145B", semestre: 3, sigla: "INV155", grupo: "GRUPO 2", materia: "INVESTIGACIÓN EDUCATIVA", docente: "APAZA MIRANDA ALBERTO", horario: "08:30 - 10:00", modulo: "263", aula: "14", fechas: ["23","6","20","4","18","1","15","29"], examen: "13/12/2026" },
+                { id: "145B_20", plan: "145B", semestre: 4, sigla: "ADM252", grupo: "GRUPO 1", materia: "TALLER DE ADMINISTRACIÓN Y SUPERVISIÓN EDUCATIVA", docente: "CASTRO FRANCO FREDDY NICOLAS", horario: "08:30 - 10:00", modulo: "263", aula: "06", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_21", plan: "145B", semestre: 4, sigla: "EDU253", grupo: "GRUPO 1", materia: "TALLER DE DISEÑO CURRICULAR", docente: "GINA FABIANA MOSCIARO BARBA", horario: "10:00 - 11:30", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_22", plan: "145B", semestre: 4, sigla: "ADM251", grupo: "GRUPO 1", materia: "TALLER DE PLANEAMIENTO EDUCATIVO", docente: "LOPEZ DE MIRANDA SILVIA RILDA", horario: "11:30 - 13:00", modulo: "263", aula: "16", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" },
+                { id: "145B_23", plan: "145B", semestre: 4, sigla: "INV301", grupo: "GRUPO 1", materia: "DISEÑO DE TESIS", docente: "QUIROZ ROJAS BERNABÉ", horario: "13:00 - 14:30", modulo: "263", aula: "12", fechas: ["16","30","13","27","11","25","8","22"], examen: "6/12/2026" }
+            ]
+        };
+
+        const semestresTexto = {
+            1: "PRIMER SEMESTRE", 2: "SEGUNDO SEMESTRE", 3: "TERCER SEMESTRE", 4: "CUARTO SEMESTRE",
+            5: "QUINTO SEMESTRE", 6: "SEXTO SEMESTRE", 7: "SÉPTIMO SEMESTRE", 8: "OCTAVO SEMESTRE", 9: "NOVENO SEMESTRE"
+        };
+
+        function obtenerClaseFondoEspecial(item) {
+            const sig = item.sigla.toUpperCase().trim();
+            const sem = parseInt(item.semestre);
+            const grp = item.grupo.toUpperCase().trim();
+
+            if (sig.startsWith("PAS")) return "row-pasantia";
+            if (sem === 9) return "row-noveno-sem";
+
+            if (sem === 7 || sem === 8) {
+                if (["PSI424", "PSI425", "PSI426", "PSI427"].includes(sig)) return "row-mencion-psico";
+                if (["CSO433", "CSO434", "CSO437", "CSO438"].includes(sig)) return "row-mencion-social";
+                if (["TEC454", "TEC455", "TEC456", "TEC457"].includes(sig)) return "row-mencion-tec";
+            }
+
+            if (grp.includes("1")) return "row-grupo1";
+            if (grp.includes("2")) return "row-grupo2";
+
+            return "";
+        }
+
+        function obtenerDatos() {
+            const p = document.getElementById('selectPlan').value;
+            if (p === '145A') return datosOficiales["145A"] || [];
+            if (p === '145B') return datosOficiales["145B"] || [];
+            return [...(datosOficiales["145A"] || []), ...(datosOficiales["145B"] || [])];
+        }
+
+        function renderizar(lista) {
+            const contenedor = document.getElementById('vista-malla');
+            contenedor.innerHTML = '';
+            let totalHoras = 0;
+
+            const porSemestre = lista.reduce((acc, r) => {
+                acc[r.semestre] = acc[r.semestre] || [];
+                acc[r.semestre].push(r);
+                totalHoras += r.grupo.includes('2') ? 32 : 48;
+                return acc;
+            }, {});
+
+            document.getElementById('lblTotalHorasPlan').innerText = totalHoras + ' hrs';
+
+            if(Object.keys(porSemestre).length === 0) {
+                contenedor.innerHTML = `<div class="bg-white p-8 text-center text-slate-500 font-medium rounded-xl border border-slate-200">No hay asignaturas registradas para este filtro.</div>`;
+                return;
+            }
+
+            Object.keys(porSemestre).sort((a,b) => a - b).forEach(sem => {
+                const registros = porSemestre[sem];
+                const tituloSem = semestresTexto[sem] || `${sem}° SEMESTRE`;
+
+                let html = `
+                    <div class="bg-white border border-slate-300 rounded-xl shadow-sm overflow-hidden mb-6">
+                        <div class="bg-slate-900 text-white px-5 py-3 flex justify-between items-center font-black text-xs uppercase tracking-wider">
+                            <span><i class="fa-solid fa-graduation-cap text-indigo-400 mr-2 text-sm"></i> ${tituloSem} (${registros.length} ASIGNATURAS)</span>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="table-custom">
+                                <thead>
+                                    <tr class="bg-subnavy">
+                                        <th rowspan="2" style="width: 70px;">SIGLA</th>
+                                        <th rowspan="2" style="width: 80px;">GRUPO</th>
+                                        <th rowspan="2" style="width: 250px;">MATERIA</th>
+                                        <th rowspan="2" style="width: 230px;">DOCENTE</th>
+                                        <th rowspan="2" style="width: 100px;">HORARIO</th>
+                                        <th rowspan="2" style="width: 60px;">MÓDULO</th>
+                                        <th rowspan="2" class="col-aula-header" style="width: 50px;">AULA</th>
+                                        <th colspan="2">AGOSTO</th>
+                                        <th colspan="2">SEPTIEMBRE</th>
+                                        <th colspan="2">OCTUBRE</th>
+                                        <th colspan="2">NOVIEMBRE</th>
+                                        <th rowspan="2" class="bg-exam" style="width: 100px;">EXAMEN FINAL</th>
+                                        <th rowspan="2" class="no-print" style="width: 60px;">ACCIONES</th>
+                                    </tr>
+                                    <tr class="bg-subnavy">
+                                        <th style="width: 28px;">P</th><th style="width: 28px;">V</th>
+                                        <th style="width: 28px;">P</th><th style="width: 28px;">V</th>
+                                        <th style="width: 28px;">P</th><th style="width: 28px;">V</th>
+                                        <th style="width: 28px;">P</th><th style="width: 28px;">V</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                registros.forEach((r, index) => {
+                    const claseEspecial = obtenerClaseFondoEspecial(r);
+                    const esUltimoGrupo1 = r.grupo.includes('1') && registros[index + 1] && registros[index + 1].grupo.includes('2');
+                    const claseSeparador = esUltimoGrupo1 ? 'row-sep-grupo' : '';
+
+                    html += `
+                        <tr class="${claseEspecial} ${claseSeparador} hover:opacity-95 transition">
+                            <td class="font-black text-center">${r.sigla}</td>
+                            <td class="text-center font-bold">${r.grupo}</td>
+                            <td class="font-bold text-left px-2.5">${r.materia}</td>
+                            <td class="text-left px-2.5 font-bold text-slate-900">${r.docente}</td>
+                            <td class="col-horario-cell">${r.horario}</td>
+                            <td class="text-center font-bold">${r.modulo}</td>
+                            <td class="col-aula-cell">${r.aula}</td>
+                            
+                            <td class="text-center font-bold">${r.fechas[0] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[1] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[2] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[3] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[4] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[5] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[6] || ''}</td>
+                            <td class="text-center font-bold">${r.fechas[7] || ''}</td>
+
+                            <td class="text-center font-black text-emerald-900 bg-emerald-50/80">${r.examen}</td>
+
+                            <td class="text-center no-print">
+                                <div class="flex items-center justify-center gap-1.5">
+                                    <button onclick="abrirModalEdicion('${r.plan}', '${r.id}')" title="Modificar" class="text-indigo-600 hover:text-indigo-900 p-1 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors"><i class="fa-solid fa-pen text-xs"></i></button>
+                                    <button onclick="eliminarRegistro('${r.plan}', '${r.id}')" title="Eliminar" class="text-rose-600 hover:text-rose-900 p-1 bg-rose-50 hover:bg-rose-100 rounded transition-colors"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                contenedor.innerHTML += html;
+            });
+
+            renderizarResumenDocentes(lista);
+        }
+
+        function filtrar() {
+            const plan = document.getElementById('selectPlan').value;
+            const grupo = document.getElementById('selectGrupo').value;
+            const semestre = document.getElementById('selectSemestre').value;
+            const texto = document.getElementById('inputBuscar').value.toLowerCase();
+
+            let lista = obtenerDatos();
+
+            const filtrados = lista.filter(i => {
+                const mPlan = (plan === 'TODOS' || i.plan === plan);
+                const mGrupo = (grupo === 'TODOS' || i.grupo === grupo);
+                const mSem = (semestre === 'TODOS' || i.semestre.toString() === semestre);
+                const mTxt = i.materia.toLowerCase().includes(texto) ||
+                             i.sigla.toLowerCase().includes(texto) ||
+                             i.docente.toLowerCase().includes(texto);
+
+                return mPlan && mGrupo && mSem && mTxt;
+            });
+
+            renderizar(filtrados);
+        }
+
+        function limpiarFiltros() {
+            document.getElementById('selectGrupo').value = 'TODOS';
+            document.getElementById('selectSemestre').value = 'TODOS';
+            document.getElementById('inputBuscar').value = '';
+            filtrar();
+        }
+
+        function renderizarResumenDocentes(lista) {
+            const contenedor = document.getElementById('contenedorDocentes');
+            contenedor.innerHTML = '';
+            
+            let resumen = {};
+            lista.forEach(i => {
+                if(i.docente && i.docente.trim() !== "") {
+                    const hrs = i.grupo.includes('2') ? 32 : 48;
+                    resumen[i.docente] = (resumen[i.docente] || 0) + hrs;
+                }
+            });
+
+            const totalDoc = Object.keys(resumen).length;
+            document.getElementById('lblTotalDocentesCount').innerText = `${totalDoc} Docentes Registrados`;
+
+            Object.keys(resumen).sort().forEach(doc => {
+                contenedor.innerHTML += `
+                    <div class="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex justify-between items-center text-xs shadow-sm hover:border-indigo-300 transition-all">
+                        <span class="font-bold text-slate-900"><i class="fa-solid fa-user-tie text-indigo-600 mr-2"></i>${doc}</span>
+                        <span class="bg-indigo-100/80 text-indigo-900 font-extrabold px-3 py-1 rounded-full">${resumen[doc]} hrs</span>
+                    </div>
+                `;
+            });
+        }
+
+        function abrirModalEdicion(plan, id) {
+            const item = datosOficiales[plan].find(x => x.id === id);
+            if(!item) return;
+
+            document.getElementById('editItemPlan').value = plan;
+            document.getElementById('editItemId').value = id;
+            document.getElementById('editSigla').value = item.sigla;
+            document.getElementById('editGrupo').value = item.grupo;
+            document.getElementById('editMateria').value = item.materia;
+            document.getElementById('editDocente').value = item.docente;
+            document.getElementById('editHorario').value = item.horario;
+            document.getElementById('editModulo').value = item.modulo;
+            document.getElementById('editAula').value = item.aula;
+            
+            for(let i = 0; i < 8; i++) {
+                document.getElementById(`editF${i}`).value = item.fechas[i] || '';
+            }
+            document.getElementById('editExamen').value = item.examen;
+
+            document.getElementById('modalEdicion').classList.remove('hidden');
+        }
+
+        function cerrarModal() {
+            document.getElementById('modalEdicion').classList.add('hidden');
+        }
+
+        function guardarEdicion() {
+            const plan = document.getElementById('editItemPlan').value;
+            const id = document.getElementById('editItemId').value;
+            const item = datosOficiales[plan].find(x => x.id === id);
+
+            if(item) {
+                item.sigla = document.getElementById('editSigla').value.toUpperCase();
+                item.grupo = document.getElementById('editGrupo').value;
+                item.materia = document.getElementById('editMateria').value;
+                item.docente = document.getElementById('editDocente').value;
+                item.horario = document.getElementById('editHorario').value;
+                item.modulo = document.getElementById('editModulo').value;
+                item.aula = document.getElementById('editAula').value;
+
+                let nuevasFechas = [];
+                for(let i = 0; i < 8; i++) {
+                    nuevasFechas.push(document.getElementById(`editF${i}`).value);
+                }
+                item.fechas = nuevasFechas;
+                item.examen = document.getElementById('editExamen').value;
+
+                filtrar();
+                cerrarModal();
+            }
+        }
+
+        function eliminarRegistro(plan, id) {
+            if(confirm("¿Está seguro de que desea eliminar esta asignatura de la programación oficial?")) {
+                datosOficiales[plan] = datosOficiales[plan].filter(x => x.id !== id);
+                filtrar();
+            }
+        }
+
+        function importarExcelArchivo(evt) {
+            const file = evt.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = e.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+
+                ['145A', '145-A', '145-B', '145B'].forEach(sheetName => {
+                    if(workbook.Sheets[sheetName]) {
+                        const planKey = (sheetName.includes('A') || sheetName.includes('145A')) ? '145A' : '145B';
+                        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                        let nuevosRegistros = [];
+                        let currentSem = 1;
+                        let inBlock = false;
+
+                        sheetData.forEach((row, idx) => {
+                            if (!row || row.length < 4) return;
+                            const col0 = row[0] ? row[0].toString().trim() : '';
+                            const col1 = row[1] ? row[1].toString().trim() : '';
+
+                            if (col1.toUpperCase() === 'SIGLA') {
+                                if (inBlock) currentSem++;
+                                inBlock = true;
+                                return;
+                            }
+
+                            if (col0 && !isNaN(parseFloat(col0))) {
+                                const v = parseFloat(col0);
+                                if (v >= 1 && v <= 10) currentSem = parseInt(v);
+                            }
+
+                            if (col1 && col1.toUpperCase() !== 'SIGLA' && !col1.startsWith('ESPECIALIDAD') && col1.length >= 4) {
+                                let dateCols = planKey === '145A' ? [9, 10, 11, 12, 14, 15, 17, 18] : [7, 8, 9, 10, 11, 12, 13, 14];
+                                let fechas = [];
+                                dateCols.forEach(c => {
+                                    if(row[c] !== undefined && row[c] !== null && row[c].toString().trim() !== '' && row[c].toString().trim() !== 'nan') {
+                                        fechas.push(row[c].toString().trim());
+                                    } else {
+                                        fechas.push('');
+                                    }
+                                });
+
+                                let grupoVal = row[2] ? row[2].toString().trim() : 'GRUPO 1';
+                                let exFecha = grupoVal.includes('2') ? '13/12/2026' : '6/12/2026';
+
+                                nuevosRegistros.push({
+                                    id: `${planKey}_imp_${idx}`,
+                                    plan: planKey,
+                                    semestre: currentSem,
+                                    sigla: col1,
+                                    grupo: grupoVal,
+                                    materia: row[3] ? row[3].toString().trim() : '',
+                                    docente: row[4] ? row[4].toString().trim() : '',
+                                    horario: row[5] ? row[5].toString().trim() : '',
+                                    modulo: '263',
+                                    aula: row[6] ? row[6].toString().trim().replace('263-', '') : '',
+                                    fechas: fechas.slice(0, 8),
+                                    examen: exFecha
+                                });
+                            }
+                        });
+
+                        if(nuevosRegistros.length > 0) {
+                            datosOficiales[planKey] = nuevosRegistros;
+                        }
+                    }
+                });
+
+                limpiarFiltros();
+                alert("¡Base de datos cargada e importada correctamente!");
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        function exportarPDF() {
+            const elemento = document.getElementById('areaImpresion');
+            const opt = {
+                margin:       0.3,
+                filename:     'SIGPA_CEDU_Cronograma_Tutorias.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+            };
+            html2pdf().set(opt).from(elemento).save();
+        }
+
+        function cambiarVista(vista) {
+            document.getElementById('vista-malla').classList.toggle('hidden', vista !== 'malla');
+            document.getElementById('vista-docentes').classList.toggle('hidden', vista !== 'docentes');
+            document.getElementById('btnNavMalla').className = vista === 'malla' ? "w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white bg-indigo-600 shadow-md shadow-indigo-600/30 transition-all" : "w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition-all";
+            document.getElementById('btnNavDocentes').className = vista === 'docentes' ? "w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white bg-indigo-600 shadow-md shadow-indigo-600/30 transition-all" : "w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition-all";
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            limpiarFiltros();
+        });
+    </script>
+</body>
+</html>
